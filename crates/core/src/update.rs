@@ -1,8 +1,8 @@
 use crate::notch::json;
 
-pub const REPO: &str = "abdeealfarizi/abra";
-pub const API: &str = "https://api.github.com/repos/abdeealfarizi/abra/releases/latest";
-pub const RELEASES: &str = "https://github.com/abdeealfarizi/abra/releases/latest";
+pub const REPO: &str = "hoquan2007/abra_MacOS";
+pub const API: &str = "https://api.github.com/repos/hoquan2007/abra_MacOS/releases/latest";
+pub const RELEASES: &str = "https://github.com/hoquan2007/abra_MacOS/releases/latest";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Release {
@@ -100,9 +100,9 @@ mod tests {
 
     #[test]
     fn picks_the_setup_asset_and_digest() {
-        let body = r#"{"tag_name":"v0.5.1","html_url":"https://github.com/abdeealfarizi/abra/releases/tag/v0.5.1","draft":false,"prerelease":false,
-          "assets":[{"name":"ABRA-0.5.1-win-x64.zip","browser_download_url":"https://github.com/abdeealfarizi/abra/releases/download/v0.5.1/ABRA-0.5.1-win-x64.zip","digest":"sha256:aa"},
-                    {"name":"ABRA-Setup-0.5.1.exe","browser_download_url":"https://github.com/abdeealfarizi/abra/releases/download/v0.5.1/ABRA-Setup-0.5.1.exe","digest":"sha256:16BBBADC940B1EC031B0CCB8FD2B7C1F1D2EC5D2C0342114A13A0DEBF3120DFB"}]}"#;
+        let body = r#"{"tag_name":"v0.5.1","html_url":"https://github.com/hoquan2007/abra_MacOS/releases/tag/v0.5.1","draft":false,"prerelease":false,
+          "assets":[{"name":"ABRA-0.5.1-win-x64.zip","browser_download_url":"https://github.com/hoquan2007/abra_MacOS/releases/download/v0.5.1/ABRA-0.5.1-win-x64.zip","digest":"sha256:aa"},
+                    {"name":"ABRA-Setup-0.5.1.exe","browser_download_url":"https://github.com/hoquan2007/abra_MacOS/releases/download/v0.5.1/ABRA-Setup-0.5.1.exe","digest":"sha256:16BBBADC940B1EC031B0CCB8FD2B7C1F1D2EC5D2C0342114A13A0DEBF3120DFB"}]}"#;
         let r = parse_release(body).unwrap();
         assert_eq!(r.version, "0.5.1");
         assert_eq!(r.setup_name.as_deref(), Some("ABRA-Setup-0.5.1.exe"));
@@ -113,7 +113,7 @@ mod tests {
     fn rejects_foreign_urls_missing_digest_and_prereleases() {
         let foreign = r#"{"tag_name":"v9.0.0","assets":[{"name":"ABRA-Setup-9.0.0.exe","browser_download_url":"https://evil.example/ABRA-Setup-9.0.0.exe","digest":"sha256:16bbbadc940b1ec031b0ccb8fd2b7c1f1d2ec5d2c0342114a13a0debf3120dfb"}]}"#;
         assert_eq!(parse_release(foreign).unwrap().setup_url, None);
-        let nodigest = r#"{"tag_name":"v9.0.0","assets":[{"name":"ABRA-Setup-9.0.0.exe","browser_download_url":"https://github.com/abdeealfarizi/abra/releases/download/v9.0.0/ABRA-Setup-9.0.0.exe"}]}"#;
+        let nodigest = r#"{"tag_name":"v9.0.0","assets":[{"name":"ABRA-Setup-9.0.0.exe","browser_download_url":"https://github.com/hoquan2007/abra_MacOS/releases/download/v9.0.0/ABRA-Setup-9.0.0.exe"}]}"#;
         let r = parse_release(nodigest).unwrap();
         assert!(r.setup_url.is_some() && r.sha256.is_none());
         assert!(parse_release(r#"{"tag_name":"v9.0.0","prerelease":true,"assets":[]}"#).is_none());

@@ -4,6 +4,21 @@
 
 <h1 align="center">ABRA</h1>
 
+> [!NOTE]
+> **This is a fork: `abra_MacOS`.** It is based on [abdeealfarizi/abra](https://github.com/abdeealfarizi/abra)
+> (same PolyForm Noncommercial license, see `LICENSE.md`) and adds:
+>
+> - **Force Quit** in the Deck right-click menu (really ends a frozen app, not just a polite close).
+> - **Running apps panel**: a grid icon on the Rail lists open apps and background/tray apps with their icon and
+>   memory use. Click to switch, right-click for Show, Close or Force Quit.
+> - **Deck on the left edge**: *Settings → Deck → Deck position → Left*.
+>
+> **Download:** [latest release](https://github.com/hoquan2007/abra_MacOS/releases/latest), take `ABRA-Setup-x.y.z.exe`
+> (installer) or the portable `.zip`. Built-in updates of this build come from this repository.
+>
+> *Bản fork thêm: Buộc thoát (Force Quit) bằng chuột phải, khung xem app đang chạy trên Rail, và Deck ở cạnh trái.
+> Tải bản cài đặt ở mục [Releases](https://github.com/hoquan2007/abra_MacOS/releases/latest).*
+
 > [!WARNING]
 > **Early Access.** ABRA is still in active development. Things can break, look unfinished or change between versions,
 > and some settings may move or reset in a later release. Please [report bugs and ideas](https://github.com/abdeealfarizi/abra/issues)
