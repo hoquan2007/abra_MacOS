@@ -43,7 +43,6 @@
   <img alt="License" src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-blue">
   <img alt="Telemetry" src="https://img.shields.io/badge/data%20collected-none-success">
   <a href="https://abdeealfarizi.github.io/abra-site/"><img alt="Website" src="https://img.shields.io/badge/Website-abra--site-0a84ff"></a>
-  <a href="https://saweria.co/kreativadev"><img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Saweria-faae2b?logo=buymeacoffee&logoColor=black"></a>
 </p>
 
 <p align="center">
@@ -53,8 +52,7 @@
   <a href="#-modular-turn-off-what-you-dont-want">Modular</a> ·
   <a href="#-privacy">Privacy</a> ·
   <a href="#-built-with">Built with</a> ·
-  <a href="#-build-from-source">Build</a> ·
-  <a href="#-support-abra">Support</a>
+  <a href="#-build-from-source">Build</a>
 </p>
 
 ---
@@ -209,7 +207,7 @@ It is one small native program: no Electron, no web view, no background services
 
 - A brand‑new Visor with **Play**, **Shelf** and **Timer** tabs, live lyrics, a music idle mode and download progress.
 - **Send to phone**: drop files on the Visor and scan a QR code with any Android or iPhone.
-- Wi‑Fi and Bluetooth pickers, the ABRA app icon and a **Buy me a coffee** button.
+- Wi‑Fi and Bluetooth pickers and the ABRA app icon.
 </details>
 
 ---
@@ -623,16 +621,3 @@ source license. The bundled **Inter** font is © The Inter Project Authors, unde
 (`assets/fonts/Inter-LICENSE.txt`).
 
 Required Notice: Copyright (c) 2026 Abdee Alfarizi
-
----
-
-## ☕ Support ABRA
-
-ABRA is free and built in spare time by **[kreativa.dev](https://saweria.co/kreativadev)**. If it makes your desktop nicer,
-you can buy me a coffee — it keeps the project going. Terima kasih! 🙏
-
-<p align="center">
-  <a href="https://saweria.co/kreativadev">
-    <img alt="Buy me a coffee on Saweria" src="https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-saweria.co%2Fkreativadev-faae2b?style=for-the-badge">
-  </a>
-</p>

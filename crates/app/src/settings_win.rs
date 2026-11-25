@@ -87,7 +87,6 @@ enum Action {
     LyricsDir,
     WinColors,
     WinPower,
-    Donate,
     UpdateCheck,
     UpdateAct,
     UpdateNotes,
@@ -202,7 +201,6 @@ fn row_label(r: &RowDef) -> &'static str {
     }
 }
 
-const DONATE_URL: &str = "https://saweria.co/kreativadev";
 
 fn focus_label(name: &str, rest: bool) -> &'static str {
     match (name, rest) {
@@ -928,7 +926,6 @@ impl Win {
                             RowDef::Pick(ver, button, Action::UpdateAct),
                             RowDef::Toggle(prefs::tr("Periksa pembaruan otomatis"), s.update_check, Action::UpdateCheck),
                             RowDef::Pick(prefs::tr("Catatan rilis"), prefs::tr("Buka").to_string(), Action::UpdateNotes),
-                            RowDef::Pick(prefs::tr("Dibuat oleh kreativa.dev"), prefs::tr("Belikan aku kopi").to_string(), Action::Donate),
                         ]
                     },
                 ),
@@ -1301,7 +1298,7 @@ impl Win {
         ];
         let mut sy = 140.0 * d;
         self.side.clear();
-        let (view_top, view_bot) = (134.0 * d, (H - 96.0) * d);
+        let (view_top, view_bot) = (134.0 * d, (H - 20.0) * d);
         let side_body = match (self.comp.CreateContainerVisual(), self.comp.CreateContainerVisual()) {
             (Ok(v), Ok(b)) => {
                 let _ = v.SetOffset(Vector3 { X: 0.0, Y: view_top, Z: 0.0 });
@@ -1360,14 +1357,6 @@ impl Win {
             self.rect(c, bx, ty, bw, th, bw / 2.0, col(look.fg, if self.side_drag.is_some() { 110 } else { 70 }));
             self.side_bar = Some(((bx - 6.0 * d, track_top, bw + 12.0 * d, track_h), th));
         }
-        let (kx, kw) = (20.0 * d, (SIDEBAR_W - 40.0) * d);
-        let ky = (H - 84.0) * d;
-        self.text(c, prefs::tr("Dibuat oleh kreativa.dev"), kx + kw / 2.0, ky, 11.0, 500, look.fg, 0.55, 1);
-        let (kby, kbh) = (ky + 22.0 * d, 32.0 * d);
-        self.rect(c, kx, kby, kw, kbh, kbh / 2.0, col([255, 159, 10], 255));
-        self.text(c, prefs::tr("Belikan aku kopi"), kx + kw / 2.0, kby + (kbh - 17.0 * d) / 2.0, 13.0, 600, [255, 255, 255], 1.0, 1);
-        self.region_fixed(kx, kby, kw, kbh, Action::Donate);
-
         let (bx, by, bw, bh) = (CONTENT_X * d, 11.0 * d, 64.0 * d, 28.0 * d);
         self.rect(c, bx, by, bw, bh, 14.0 * d, col(look.fg, 24));
         let (can_back, can_fwd) = (self.hpos > 0, self.hpos + 1 < self.history.len());
@@ -1773,7 +1762,6 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
                 Some(Action::NotchDownloads) => prefs::update(|s| s.notch_downloads = !s.notch_downloads),
                 Some(Action::NotchSend) => prefs::update(|s| s.notch_send = !s.notch_send),
                 Some(Action::LyricsOnline) => prefs::update(|s| s.lyrics_online = !s.lyrics_online),
-                Some(Action::Donate) => nacre_platform::launch::open(DONATE_URL),
                 Some(Action::UpdateCheck) => prefs::update(|s| s.update_check = !s.update_check),
                 Some(Action::UpdateNotes) => crate::updater::open_release_notes(),
                 Some(Action::UpdateAct) => match crate::updater::phase() {
