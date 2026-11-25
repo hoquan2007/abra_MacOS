@@ -22,4 +22,5 @@ features = [
   "Win32_Media_KernelStreaming",
   "ApplicationModel_Appointments", "Win32_System_Time", "Networking_Connectivity",
   "Win32_Security_Cryptography", "Win32_Devices_Display",
+  "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_System_RemoteDesktop",
 ]

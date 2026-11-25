@@ -90,8 +90,7 @@ impl Preview {
         gfx: &Gfx,
         windows: &[(isize, String, bool)],
         icon: Option<&CompositionDrawingSurface>,
-        cx: i32,
-        bottom: i32,
+        at: super::Anchor,
     ) -> Result<()> {
         self.clear();
         let d = self.dpi;
@@ -103,8 +102,16 @@ impl Preview {
         let (pad, gap, title_h) = ((12.0 * d) as i32, (6.0 * d) as i32, (20.0 * d) as i32);
         let w = pad + n as i32 * (tw + pad);
         let h = pad + th + gap + title_h + pad;
-        let x = nacre_platform::monitors::at(cx, bottom - 1).area.clamp_x(cx - w / 2, w, 4);
-        self.popup.set_rect(x, bottom - h, w, h)?;
+        match at {
+            super::Anchor::Above { cx, bottom } => {
+                let x = nacre_platform::monitors::at(cx, bottom - 1).area.clamp_x(cx - w / 2, w, 4);
+                self.popup.set_rect(x, bottom - h, w, h)?;
+            }
+            super::Anchor::Right { left, cy } => {
+                let y = nacre_platform::monitors::at(left + 1, cy).area.clamp_y(cy - h / 2, h, 4);
+                self.popup.set_rect(left, y, w, h)?;
+            }
+        }
         self.popup.panel.set_radius(18.0 * d)?;
         self.popup.show();
 

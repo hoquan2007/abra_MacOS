@@ -31,6 +31,7 @@ pub mod privacy;
 pub mod process;
 pub mod quickops;
 pub mod recent;
+pub mod running;
 pub mod recycle;
 pub mod radio;
 pub mod shell;

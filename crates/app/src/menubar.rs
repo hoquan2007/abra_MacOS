@@ -1,6 +1,6 @@
 use nacre_core::appmenus::{Act, Line, Menu as AppMenu};
 use nacre_core::settings::Behavior;
-use crate::dock::menu::{Item, Menu, MENU_CLOSE, MENU_PICK};
+use crate::dock::menu::{Item, Menu, MENU_CLOSE, MENU_PICK, MENU_RIGHT};
 use crate::popup::Popup;
 use crate::{prefs, services};
 use nacre_core::menubar::{self as lay, Gap, Item as LItem, Placed};
@@ -55,6 +55,13 @@ const SEARCH: u32 = 12;
 const WIFI: u32 = 13;
 const BATT: u32 = 14;
 const STAGEI: u32 = 15;
+const ACTV: u32 = 16;
+const ACT_ROW: usize = 300_000;
+const ACT_OPEN: usize = 310_000;
+const ACT_CLOSE: usize = 320_000;
+const ACT_KILL: usize = 330_000;
+const ACT_END: usize = 340_000;
+const ACT_ICON_PX: i32 = 32;
 const NATIVE0: u32 = 50;
 const NATIVE_CMD: usize = 100_000;
 
@@ -91,6 +98,8 @@ struct Bar {
     fullscreen: bool,
     edge: bool,
     smart_hidden: bool,
+    activity: Vec<nacre_platform::running::RunningApp>,
+    act_icons: HashMap<String, Option<std::rc::Rc<Bitmap>>>,
 }
 
 struct Ctl {
@@ -381,6 +390,8 @@ fn create(comp: &Compositor) -> windows_core::Result<Box<Bar>> {
         fullscreen: false,
         edge: false,
         smart_hidden: false,
+        activity: Vec::new(),
+        act_icons: HashMap::new(),
     });
     bar.apply_bg();
     Ok(bar)
@@ -685,6 +696,9 @@ impl Bar {
         ];
         if prefs::get().stage {
             right.push(LItem { id: STAGEI, width: icon_w });
+        }
+        if prefs::get().rail_activity {
+            right.push(LItem { id: ACTV, width: icon_w });
         }
         if self.wifi.is_some() {
             right.push(LItem { id: WIFI, width: icon_w });
@@ -993,6 +1007,7 @@ impl Bar {
                 CTRL => self.draw_glyph("\u{E9E9}", cx, 13.0, 0.95),
                 SEARCH => self.draw_glyph("\u{E721}", cx, 13.0, 0.95),
                 STAGEI => self.draw_glyph("\u{E8A0}", cx, 13.0, 0.95),
+                ACTV => self.draw_glyph("\u{E71D}", cx, 13.0, 0.95),
                 WIFI => self.draw_wifi(cx),
                 BATT => {
                     if !self.shadow {
@@ -1124,10 +1139,13 @@ impl Bar {
     }
 
     fn has_menu(id: u32) -> bool {
-        matches!(id, LOGO | APP) || (NATIVE0..NATIVE0 + 20).contains(&id) || (PROF0..PROF0 + 12).contains(&id)
+        matches!(id, LOGO | APP | ACTV) || (NATIVE0..NATIVE0 + 20).contains(&id) || (PROF0..PROF0 + 12).contains(&id)
     }
 
     fn open_menu(&mut self, id: u32) {
+        if id == ACTV {
+            self.refresh_activity();
+        }
         let items = self.menu_items(id);
         log::line("menubar", &format!("buka menu {id}: {} item", items.len()));
         let Some((x, _)) = self.rect_of(id) else { return };
@@ -1219,6 +1237,7 @@ impl Bar {
                     a(811, &prefs::tr("Pengaturan Sistem…")),
                 ]
             }
+            ACTV => self.activity_items(),
             LOGO => vec![
                 a(100, &prefs::tr("Tentang PC Ini")),
                 Item::separator(),
@@ -1304,8 +1323,12 @@ impl Bar {
         }
     }
 
-    fn pick(&mut self, cmd: usize) {
+    fn pick(&mut self, cmd: usize, right: bool) {
         self.close_menu();
+        if (ACT_ROW..ACT_END).contains(&cmd) {
+            self.pick_activity(cmd, right);
+            return;
+        }
         if cmd >= PROF_CMD {
             let (mi, li) = ((cmd - PROF_CMD) / 100, (cmd - PROF_CMD) % 100);
             match self.profile().get(mi).and_then(|m| m.lines.get(li)) {
@@ -1359,6 +1382,95 @@ impl Bar {
             203 => self.show_all(),
             204 => crate::macshortcuts::quit_foreground_app(),
             _ => {}
+        }
+    }
+
+    fn refresh_activity(&mut self) {
+        let t = std::time::Instant::now();
+        self.activity = nacre_platform::running::snapshot();
+        for a in &self.activity {
+            if !self.act_icons.contains_key(&a.path) {
+                let icon = nacre_platform::icons::load(&a.path, ACT_ICON_PX).map(std::rc::Rc::new);
+                self.act_icons.insert(a.path.clone(), icon);
+            }
+        }
+        log::line("activity", &format!("{} app, {} ms", self.activity.len(), t.elapsed().as_millis()));
+    }
+
+    fn activity_items(&self) -> Vec<Item> {
+        let row = |i: usize, a: &nacre_platform::running::RunningApp| {
+            let name: String = if a.name.chars().count() > 34 { a.name.chars().take(33).chain(std::iter::once('…')).collect() } else { a.name.clone() };
+            Item::action(ACT_ROW + i, &name, true)
+                .with_icon(self.act_icons.get(&a.path).cloned().flatten())
+                .with_accel(&nacre_platform::running::format_mem(a.mem))
+        };
+        let mut items = Vec::new();
+        for (windowed, title) in [(true, "Sedang dibuka"), (false, "Berjalan di latar")] {
+            let group: Vec<Item> = self.activity.iter().enumerate().filter(|(_, a)| a.windowed == windowed).map(|(i, a)| row(i, a)).collect();
+            if group.is_empty() {
+                continue;
+            }
+            if !items.is_empty() {
+                items.push(Item::separator());
+            }
+            items.push(Item::heading(prefs::tr(title)));
+            items.extend(group);
+        }
+        if !items.is_empty() {
+            items.push(Item::separator());
+        }
+        items.push(Item::action(0, prefs::tr("Klik kanan untuk paksa keluar"), false));
+        items.push(Item::action(104, prefs::tr("Buka Task Manager…"), true));
+        items
+    }
+
+    fn pick_activity(&mut self, cmd: usize, right: bool) {
+        let (base, i) = (cmd - cmd % 10_000, cmd % 10_000);
+        let Some(app) = self.activity.get(i).cloned() else { return };
+        match base {
+            ACT_ROW if right => self.open_activity_menu(i, &app),
+            ACT_ROW | ACT_OPEN => match app.hwnds.first() {
+                Some(&h) => {
+                    if !focus::activate(h, 0) {
+                        focus::force_foreground(h);
+                    }
+                }
+                None => launch::open(&app.path),
+            },
+            ACT_CLOSE => {
+                for &h in &app.hwnds {
+                    focus::request_close(h);
+                }
+            }
+            ACT_KILL => {
+                for pid in app.kill_targets() {
+                    let r = nacre_platform::process::terminate(pid);
+                    log::line("activity", &format!("paksa keluar {} pid={pid}: {r:?}", app.name));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn open_activity_menu(&mut self, i: usize, app: &nacre_platform::running::RunningApp) {
+        let can_kill = app.kill_targets().iter().any(|&p| nacre_platform::process::can_terminate(p));
+        let mut items = vec![
+            Item::heading(&app.name),
+            Item::action(ACT_OPEN + i, prefs::tr(if app.windowed { "Tampilkan" } else { "Buka" }), true),
+        ];
+        if app.windowed {
+            items.push(Item::action(ACT_CLOSE + i, prefs::tr("Tutup"), true));
+        }
+        items.push(Item::separator());
+        items.push(Item::action(ACT_KILL + i, prefs::tr("Paksa keluar"), can_kill));
+        let mut pt = windows::Win32::Foundation::POINT::default();
+        unsafe {
+            let _ = GetCursorPos(&mut pt);
+        }
+        let comp = self.comp.clone();
+        if self.menu.show_below(&comp, &self.gfx, items, pt.x, pt.y).is_ok() {
+            self.open = Some(ACTV);
+            self.update_capsule();
         }
     }
 
@@ -1456,16 +1568,19 @@ unsafe extern "system" fn bar_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         }
         WM_LBUTTONDOWN => {
             let (x, _) = xy(lp);
-            with_bar(|b| {
+            let r = with_bar(|b| {
                 if let Some(id) = b.id_at(x) {
                     b.press_feedback();
                     b.click(id);
                 }
             });
+            if r.is_none() {
+                log::line("menubar", "klik diabaikan: Bar sedang sibuk");
+            }
             LRESULT(0)
         }
         MENU_PICK => {
-            with_bar(|b| b.pick(wp.0));
+            with_bar(|b| b.pick(wp.0, lp.0 == MENU_RIGHT));
             LRESULT(0)
         }
         MENU_CLOSE => {

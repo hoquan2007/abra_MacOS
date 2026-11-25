@@ -95,6 +95,7 @@ pub fn for_glyph(g: &str) -> Option<Sym> {
         "\u{E721}" => Some(Sym::Search),
         "\u{E9E9}" => Some(Sym::Control),
         "\u{E8A0}" => Some(Sym::Stage),
+        "\u{E71D}" => Some(Sym::Grid),
         _ => None,
     }
 }

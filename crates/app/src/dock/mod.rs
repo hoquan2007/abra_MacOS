@@ -80,6 +80,7 @@ const CMD_TRASH_OPEN: usize = 9;
 const CMD_TRASH_EMPTY: usize = 10;
 const CMD_STACK_FOLDER: usize = 11;
 const CMD_FORGET: usize = 12;
+const CMD_FORCE_QUIT: usize = 13;
 const CMD_STACK: usize = 100;
 const RECENTS_KEEP: usize = 8;
 const RECENTS_SHOW: usize = 3;
@@ -87,6 +88,15 @@ const DOWNLOADS_KEY: &str = "\u{0}downloads";
 
 fn downloads_key() -> String {
     nacre_platform::downloads::folder().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()
+}
+
+/// Where a popup (tooltip, window preview) attaches to a Deck icon, in screen pixels.
+#[derive(Clone, Copy, Debug)]
+pub enum Anchor {
+    /// Deck at the bottom: popup sits above, centered on `cx`, its bottom edge at `bottom`.
+    Above { cx: i32, bottom: i32 },
+    /// Deck on the left: popup sits to the right, its left edge at `left`, centered on `cy`.
+    Right { left: i32, cy: i32 },
 }
 
 pub struct Options {
@@ -130,6 +140,9 @@ pub struct Dock {
     gfx: Gfx,
     _surface: Surface,
     stage: ContainerVisual,
+    /// Rotates the whole Deck 90° when it sits on the left edge; everything inside stays in "bottom Deck" coordinates.
+    frame: ContainerVisual,
+    left: bool,
     stage_anim: SpringScalarNaturalMotionAnimation,
     panel: GlassPanel,
     content: ContainerVisual,
@@ -322,8 +335,10 @@ impl Dock {
             let m = metrics_from_prefs(dpi);
 
             let surface = host.attach(hwnd, (400.0, 120.0))?;
+            let frame = host.compositor.CreateContainerVisual()?;
+            surface.root.Children()?.InsertAtTop(&frame)?;
             let stage = host.compositor.CreateContainerVisual()?;
-            surface.root.Children()?.InsertAtTop(&stage)?;
+            frame.Children()?.InsertAtTop(&stage)?;
             let mut panel = GlassPanel::new(&host.compositor, &stage, crate::prefs::glass((10.0, 10.0), 22.0 * dpi * crate::prefs::round(crate::prefs::Role::Dock), crate::prefs::Role::Dock))?;
             let tier = opts.glass.unwrap_or_else(|| auto_tier(&sys::conditions()));
             panel.set_tier(tier)?;
@@ -356,6 +371,8 @@ impl Dock {
                 gfx,
                 _surface: surface,
                 stage,
+                frame,
+                left: crate::prefs::get().dock_left,
                 stage_anim: spring(&host.compositor, 0.78, 150)?,
                 panel,
                 content,
@@ -480,18 +497,65 @@ impl Dock {
 
     fn resize_window(&mut self) {
         let need = self.max_content_width() + 2.0 * self.pad_side + 40.0 * self.dpi;
-        let w = (need.ceil() as i32).clamp(200, self.screen.0);
+        let along = if self.left { self.screen.1 } else { self.screen.0 };
+        let w = (need.ceil() as i32).clamp(200, along);
         self.win.0 = w;
-        self.win_pos = (self.area.x + (self.screen.0 - w) / 2, self.area.y + self.screen.1 - self.win.1);
+        self.win_pos = if self.left {
+            (self.area.x, self.area.y + (self.screen.1 - w) / 2)
+        } else {
+            (self.area.x + (self.screen.0 - w) / 2, self.area.y + self.screen.1 - self.win.1)
+        };
+        let (pw, ph) = self.phys_size();
         unsafe {
-            let _ = SetWindowPos(self.hwnd, None, self.win_pos.0, self.win_pos.1, w, self.win.1, SWP_NOACTIVATE | SWP_NOZORDER);
+            let _ = SetWindowPos(self.hwnd, None, self.win_pos.0, self.win_pos.1, pw, ph, SWP_NOACTIVATE | SWP_NOZORDER);
         }
-        let _ = self._surface.root.SetSize(windows_numerics::Vector2 { X: w as f32, Y: self.win.1 as f32 });
+        let _ = self._surface.root.SetSize(windows_numerics::Vector2 { X: pw as f32, Y: ph as f32 });
+        self.apply_orientation();
         self.place_strip();
         log::line(
             "dock",
-            &format!("jendela=({},{})-({},{}) layar={}x{} dpi={}", self.win_pos.0, self.win_pos.1, self.win_pos.0 + w, self.win_pos.1 + self.win.1, self.screen.0, self.screen.1, self.dpi),
+            &format!("jendela=({},{})-({},{}) layar={}x{} dpi={} kiri={}", self.win_pos.0, self.win_pos.1, self.win_pos.0 + pw, self.win_pos.1 + ph, self.screen.0, self.screen.1, self.dpi, self.left),
         );
+    }
+
+    /// Window size in real pixels; `win` itself is always (length along the Deck, thickness).
+    fn phys_size(&self) -> (i32, i32) {
+        if self.left {
+            (self.win.1, self.win.0)
+        } else {
+            self.win
+        }
+    }
+
+    fn apply_orientation(&self) {
+        let (angle, dx) = if self.left { (90.0, self.win.1 as f32) } else { (0.0, 0.0) };
+        let _ = self.frame.SetRotationAngleInDegrees(angle);
+        let _ = self.frame.SetOffset(Vector3 { X: dx, Y: 0.0, Z: 0.0 });
+    }
+
+    /// Window-local mouse position → Deck coordinates (x along the Deck, y from the far side toward the screen edge).
+    fn to_dock(&self, x: f32, y: f32) -> (f32, f32) {
+        if self.left {
+            (y, self.win.1 as f32 - x)
+        } else {
+            (x, y)
+        }
+    }
+
+    /// Deck-coordinate rectangle (l, t, r, b) → window-local rectangle.
+    fn local_rect(&self, l: f32, t: f32, r: f32, b: f32) -> (f32, f32, f32, f32) {
+        if self.left {
+            let th = self.win.1 as f32;
+            (th - b, l, th - t, r)
+        } else {
+            (l, t, r, b)
+        }
+    }
+
+    /// Deck-coordinate rectangle → screen rectangle (left, top, right, bottom).
+    fn screen_rect(&self, l: f32, t: f32, r: f32, b: f32) -> (i32, i32, i32, i32) {
+        let (l, t, r, b) = self.local_rect(l, t, r, b);
+        (self.win_pos.0 + l as i32, self.win_pos.1 + t as i32, self.win_pos.0 + r.ceil() as i32, self.win_pos.1 + b.ceil() as i32)
     }
 
     fn on_reconfigure(&mut self) {
@@ -558,7 +622,11 @@ impl Dock {
         }
         let d = self.dpi;
         let strip = (self.margin + self.card_h + 4.0 * d).ceil() as i32;
-        let r = nacre_platform::shell::appbar::reserve_bottom(self.hwnd, self.area, strip);
+        let r = if self.left {
+            nacre_platform::shell::appbar::reserve_left(self.hwnd, self.area, strip)
+        } else {
+            nacre_platform::shell::appbar::reserve_bottom(self.hwnd, self.area, strip)
+        };
         log::line("appbar", &format!("strip={strip} hasil={r:?}"));
     }
 
@@ -571,6 +639,10 @@ impl Dock {
             let cw = rest.total + 2.0 * self.pad_side;
             let cx = (self.win.0 as f32 - cw) / 2.0;
             (cx as i32, self.card_y as i32, (cx + cw).ceil() as i32, (self.card_y + self.card_h).ceil() as i32)
+        };
+        let (l, t, r, b) = {
+            let m = self.local_rect(l as f32, t as f32, r as f32, b as f32);
+            (m.0 as i32, m.1 as i32, m.2.ceil() as i32, m.3.ceil() as i32)
         };
         unsafe {
             let rgn = CreateRectRgn(l, t, r, b);
@@ -586,14 +658,16 @@ impl Dock {
         let rest = layout(&self.slots, None, self.win.0 as f32, &self.m);
         let cw = rest.total + 2.0 * self.pad_side;
         let cx = (self.win.0 as f32 - cw) / 2.0;
-        let l = self.win_pos.0 + cx as i32;
-        let t = self.win_pos.1 + self.card_y as i32;
-        (l, t, l + cw.ceil() as i32, t + (self.card_h + self.margin) as i32)
+        self.screen_rect(cx, self.card_y, cx + cw, self.card_y + self.card_h + self.margin)
     }
 
     fn place_strip(&self) {
         if let Some(s) = &self.strip {
-            s.place(self.win_pos.0, self.area.bottom() - 2, self.win.0, 2);
+            if self.left {
+                s.place(self.area.x, self.win_pos.1, 2, self.win.0);
+            } else {
+                s.place(self.win_pos.0, self.area.bottom() - 2, self.win.0, 2);
+            }
         }
     }
 
@@ -743,6 +817,9 @@ impl Dock {
                 }
                 Err(e) => log::line("dock", &format!("gagal membuat view: {e}")),
             }
+        }
+        for v in &self.views {
+            let _ = v.set_upright(self.left);
         }
         if self.views.len() != self.entries.len() {
             self.entries.truncate(self.views.len());
@@ -929,6 +1006,18 @@ impl Dock {
             self.signature.clear();
             self.refresh_windows();
         }
+        if s.dock_left != self.left {
+            self.left = s.dock_left;
+            self.hide_popups();
+            nacre_platform::shell::appbar::release_bottom();
+            self.last_card = (0.0, 0.0, 0.0, 0.0);
+            self.signature.clear();
+            self.refresh_windows();
+            if self.opts.appbar {
+                self.reserve_strip();
+            }
+            log::line("dock", &format!("posisi → {}", if self.left { "kiri" } else { "bawah" }));
+        }
         if self.off == s.dock_enabled {
             self.off = !s.dock_enabled;
             if self.off {
@@ -1007,11 +1096,15 @@ impl Dock {
         self.preview_hover = false;
     }
 
-    fn icon_anchor(&self, slot: usize) -> Option<(i32, i32)> {
+    fn icon_anchor(&self, slot: usize, gap: f32) -> Option<Anchor> {
         let c = self.layout.cells.get(slot)?;
-        let cx = self.win_pos.0 as f32 + c.x + c.w / 2.0;
-        let top = self.win_pos.1 as f32 + self.icon_y + self.m.icon - self.m.icon * c.scale;
-        Some((cx as i32, top as i32))
+        let center = c.x + c.w / 2.0;
+        let top = self.icon_y + self.m.icon - self.m.icon * c.scale - gap;
+        Some(if self.left {
+            Anchor::Right { left: self.win_pos.0 + (self.win.1 as f32 - top) as i32, cy: self.win_pos.1 + center as i32 }
+        } else {
+            Anchor::Above { cx: self.win_pos.0 + center as i32, bottom: self.win_pos.1 + top as i32 }
+        })
     }
 
     fn show_tooltip(&mut self) {
@@ -1033,7 +1126,7 @@ impl Dock {
             },
             _ => return,
         };
-        let Some((cx, top)) = self.icon_anchor(slot) else { return };
+        let Some(at) = self.icon_anchor(slot, 3.0 * self.dpi) else { return };
         if self.tooltip.is_none() {
             self.tooltip = Tooltip::new(&self.comp, self.dpi).ok().map(|mut t| {
                 t.set_tier(self.tier);
@@ -1041,8 +1134,7 @@ impl Dock {
             });
         }
         if let Some(t) = self.tooltip.as_mut() {
-            let bottom = top - (3.0 * self.dpi) as i32;
-            if let Err(e) = t.show(&self.comp, &self.gfx, &label, cx, bottom) {
+            if let Err(e) = t.show(&self.comp, &self.gfx, &label, at) {
                 log::line("tooltip", &format!("gagal: {e}"));
             }
         }
@@ -1061,7 +1153,7 @@ impl Dock {
         let wins: Vec<(isize, String, bool)> =
             it.hwnds.iter().map(|h| (*h, focus::title(*h), focus::is_minimized(*h))).collect();
         let icon = self.surfaces.get(&it.path).cloned();
-        let Some((cx, top)) = self.icon_anchor(slot) else { return };
+        let Some(at) = self.icon_anchor(slot, 10.0 * self.dpi) else { return };
         if self.preview.is_none() {
             self.preview = Preview::new(&self.comp, self.hwnd, self.dpi).ok().map(|mut p| {
                 let _ = p.panel_mut().set_tier(self.tier);
@@ -1072,8 +1164,7 @@ impl Dock {
             t.hide();
         }
         if let Some(p) = self.preview.as_mut() {
-            let bottom = top - (10.0 * self.dpi) as i32;
-            if let Err(e) = p.show(&self.comp, &self.gfx, &wins, icon.as_ref(), cx, bottom) {
+            if let Err(e) = p.show(&self.comp, &self.gfx, &wins, icon.as_ref(), at) {
                 log::line("preview", &format!("gagal: {e}"));
             }
         }
@@ -1310,7 +1401,8 @@ impl Dock {
         let j = self.entries.iter().position(|e| matches!(e, Entry::App(i) if *i == item))?;
         let rest = layout(&self.slots, None, self.win.0 as f32, &self.m);
         let c = rest.cells.get(j)?;
-        Some((self.win_pos.0 + c.x as i32, self.win_pos.1 + self.icon_y as i32, c.w as i32, self.m.icon as i32))
+        let r = self.screen_rect(c.x, self.icon_y, c.x + c.w, self.icon_y + self.m.icon);
+        Some((r.0, r.1, r.2 - r.0, r.3 - r.1))
     }
 
     fn on_middle_click(&mut self, x: f32) {
@@ -1355,6 +1447,9 @@ impl Dock {
             if it.running() {
                 items.push(menu::Item::separator());
                 items.push(menu::Item::action(CMD_CLOSE, crate::prefs::tr("Tutup"), true));
+                let targets = nacre_platform::process::force_quit_targets(&it.hwnds);
+                let can = targets.iter().any(|&p| nacre_platform::process::can_terminate(p));
+                items.push(menu::Item::action(CMD_FORCE_QUIT, crate::prefs::tr("Paksa keluar"), can));
             }
         }
         if info.special == Some(DOWNLOADS_KEY) {
@@ -1387,9 +1482,11 @@ impl Dock {
             let _ = GetCursorPos(&mut pt);
         }
         let bottom = self.win_pos.1 + self.card_y as i32 - (6.0 * self.dpi) as i32;
+        let (left, right_of, top) = (self.left, self.win_pos.0 + (self.win.1 as f32 - self.card_y + 6.0 * self.dpi) as i32, pt.y - (14.0 * self.dpi) as i32);
         log::line("dock", &format!("menu: kursor=({},{}) bawah={bottom} dari klik x={x}", pt.x, pt.y));
         if let Some(m) = self.menu.as_mut() {
-            if let Err(e) = m.show(&self.comp, &self.gfx, items, pt.x, bottom) {
+            let shown = if left { m.show_below(&self.comp, &self.gfx, items, right_of, top) } else { m.show(&self.comp, &self.gfx, items, pt.x, bottom) };
+            if let Err(e) = shown {
                 log::line("menu", &format!("gagal: {e}"));
                 self.on_menu_close();
             }
@@ -1425,8 +1522,10 @@ impl Dock {
             let _ = GetCursorPos(&mut pt);
         }
         let bottom = self.win_pos.1 + self.card_y as i32 - (6.0 * self.dpi) as i32;
+        let (left, right_of, top) = (self.left, self.win_pos.0 + (self.win.1 as f32 - self.card_y + 6.0 * self.dpi) as i32, pt.y - (14.0 * self.dpi) as i32);
         if let Some(m) = self.menu.as_mut() {
-            if let Err(e) = m.show(&self.comp, &self.gfx, items, pt.x, bottom) {
+            let shown = if left { m.show_below(&self.comp, &self.gfx, items, right_of, top) } else { m.show(&self.comp, &self.gfx, items, pt.x, bottom) };
+            if let Err(e) = shown {
                 log::line("menu", &format!("gagal: {e}"));
                 self.on_menu_close();
             }
@@ -1593,6 +1692,14 @@ impl Dock {
                 if let Some(it) = &info.item {
                     for h in &it.hwnds {
                         focus::request_close(*h);
+                    }
+                }
+            }
+            CMD_FORCE_QUIT => {
+                if let Some(it) = &info.item {
+                    for pid in nacre_platform::process::force_quit_targets(&it.hwnds) {
+                        let r = nacre_platform::process::terminate(pid);
+                        log::line("dock", &format!("paksa keluar pid={pid} {}: {r:?}", it.name));
                     }
                 }
             }
@@ -1802,6 +1909,7 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
                         d.update_visibility();
                     }
                 }
+                let (x, y) = d.to_dock(x, y);
                 d.on_move(x, y);
             });
             LRESULT(0)
@@ -1812,12 +1920,18 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
         }
         WM_LBUTTONDOWN => {
             let (x, y) = xy(lp);
-            with_dock(hwnd, |d| d.on_down(x, y));
+            with_dock(hwnd, |d| {
+                let (x, y) = d.to_dock(x, y);
+                d.on_down(x, y)
+            });
             LRESULT(0)
         }
         WM_LBUTTONUP => {
             let (x, y) = xy(lp);
-            with_dock(hwnd, |d| d.on_up(x, y));
+            with_dock(hwnd, |d| {
+                let (x, y) = d.to_dock(x, y);
+                d.on_up(x, y)
+            });
             LRESULT(0)
         }
         WM_CAPTURECHANGED => {
@@ -1831,13 +1945,19 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
             LRESULT(0)
         }
         WM_MBUTTONUP => {
-            let (x, _) = xy(lp);
-            with_dock(hwnd, |d| d.on_middle_click(x));
+            let (x, y) = xy(lp);
+            with_dock(hwnd, |d| {
+                let (x, _) = d.to_dock(x, y);
+                d.on_middle_click(x)
+            });
             LRESULT(0)
         }
         WM_RBUTTONUP => {
-            let (x, _) = xy(lp);
-            with_dock(hwnd, |d| d.open_menu(x));
+            let (x, y) = xy(lp);
+            with_dock(hwnd, |d| {
+                let (x, _) = d.to_dock(x, y);
+                d.open_menu(x)
+            });
             LRESULT(0)
         }
         MENU_PICK => {

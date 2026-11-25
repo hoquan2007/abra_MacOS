@@ -64,3 +64,133 @@ pub fn is_same_program(pid: u32) -> bool {
     let Some(mine) = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase())) else { return false };
     is_alive(pid) && image_name(pid).is_some_and(|n| n == mine)
 }
+
+const PROTECTED_EXES: &[&str] = &[
+    "explorer.exe",
+    "applicationframehost.exe",
+    "dwm.exe",
+    "csrss.exe",
+    "winlogon.exe",
+    "wininit.exe",
+    "lsass.exe",
+    "services.exe",
+    "smss.exe",
+    "svchost.exe",
+    "shellexperiencehost.exe",
+    "startmenuexperiencehost.exe",
+    "searchhost.exe",
+    "textinputhost.exe",
+    "sihost.exe",
+    "ctfmon.exe",
+];
+
+pub fn is_protected_exe(file: &str) -> bool {
+    let f = file.rsplit(['\\', '/']).next().unwrap_or("").to_ascii_lowercase();
+    f.is_empty() || PROTECTED_EXES.contains(&f.as_str())
+}
+
+fn pid_of_window(hwnd: isize) -> u32 {
+    let mut pid = 0u32;
+    unsafe {
+        windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(windows::Win32::Foundation::HWND(hwnd as *mut _), Some(&mut pid));
+    }
+    pid
+}
+
+fn uwp_child_pid(frame: isize, frame_pid: u32) -> Option<u32> {
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::{HWND, LPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::EnumChildWindows;
+    struct Find {
+        host: u32,
+        found: Option<u32>,
+    }
+    unsafe extern "system" fn each(child: HWND, lp: LPARAM) -> BOOL {
+        let f = &mut *(lp.0 as *mut Find);
+        let pid = pid_of_window(child.0 as isize);
+        if pid != 0 && pid != f.host {
+            f.found = Some(pid);
+            return BOOL(0);
+        }
+        BOOL(1)
+    }
+    let mut f = Find { host: frame_pid, found: None };
+    unsafe {
+        let _ = EnumChildWindows(Some(HWND(frame as *mut _)), Some(each), LPARAM(&mut f as *mut Find as isize));
+    }
+    f.found
+}
+
+/// Tiến trình thật sở hữu cửa sổ; với app UWP thì là tiến trình con bên trong ApplicationFrameHost.
+pub fn owner_pid(hwnd: isize) -> Option<u32> {
+    let pid = pid_of_window(hwnd);
+    if pid == 0 {
+        return None;
+    }
+    if image_name(pid).as_deref() == Some("applicationframehost.exe") {
+        return uwp_child_pid(hwnd, pid);
+    }
+    Some(pid)
+}
+
+/// PID có thể buộc thoát cho các cửa sổ này: bỏ trùng, bỏ tiến trình hệ thống và chính ABRA.
+pub fn force_quit_targets(hwnds: &[isize]) -> Vec<u32> {
+    let own = std::process::id();
+    let mut out: Vec<u32> = Vec::new();
+    for &h in hwnds {
+        let Some(pid) = owner_pid(h) else { continue };
+        if pid == own || out.contains(&pid) || is_same_program(pid) {
+            continue;
+        }
+        match image_name(pid) {
+            Some(n) if !is_protected_exe(&n) => out.push(pid),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Thử mở với quyền PROCESS_TERMINATE; thất bại khi app chạy quyền Admin còn ABRA thì không.
+pub fn can_terminate(pid: u32) -> bool {
+    use windows::Win32::System::Threading::PROCESS_TERMINATE;
+    unsafe {
+        match OpenProcess(PROCESS_TERMINATE, false, pid) {
+            Ok(h) => {
+                let _ = CloseHandle(h);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+}
+
+pub fn terminate(pid: u32) -> windows::core::Result<()> {
+    use windows::Win32::System::Threading::{TerminateProcess, PROCESS_TERMINATE};
+    unsafe {
+        let h = OpenProcess(PROCESS_TERMINATE, false, pid)?;
+        let r = TerminateProcess(h, 1);
+        let _ = CloseHandle(h);
+        r
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn system_processes_are_protected() {
+        assert!(is_protected_exe("explorer.exe"));
+        assert!(is_protected_exe(r"C:\Windows\Explorer.EXE"));
+        assert!(is_protected_exe("ApplicationFrameHost.exe"));
+        assert!(is_protected_exe(""));
+        assert!(!is_protected_exe("chrome.exe"));
+        assert!(!is_protected_exe(r"C:\Program Files\Zalo\Zalo.exe"));
+    }
+
+    #[test]
+    fn no_windows_means_no_targets() {
+        assert!(force_quit_targets(&[]).is_empty());
+        assert!(!is_protected_exe("notexplorer.exe"));
+    }
+}

@@ -16,6 +16,8 @@ use windows_numerics::{Vector2, Vector3};
 
 pub const MENU_PICK: u32 = WM_APP + 12;
 pub const MENU_CLOSE: u32 = WM_APP + 13;
+/// LPARAM của MENU_PICK khi mục được chọn bằng chuột phải.
+pub const MENU_RIGHT: isize = 1;
 
 static TARGET: AtomicIsize = AtomicIsize::new(0);
 
@@ -33,11 +35,12 @@ pub struct Item {
     pub lead: Option<(nacre_core::symbols::Sym, bool)>,
     pub trail: Vec<nacre_core::symbols::Sym>,
     pub keep_open: bool,
+    pub icon: Option<std::rc::Rc<nacre_platform::icons::Bitmap>>,
 }
 
 impl Item {
     pub fn action(id: usize, label: &str, enabled: bool) -> Item {
-        Item { id, label: label.to_string(), enabled, separator: false, accel: String::new(), sym: None, toggle: None, heading: false, title: false, lead: None, trail: Vec::new(), keep_open: false }
+        Item { id, label: label.to_string(), enabled, separator: false, accel: String::new(), sym: None, toggle: None, heading: false, title: false, lead: None, trail: Vec::new(), keep_open: false, icon: None }
     }
     pub fn separator() -> Item {
         Item { separator: true, ..Item::action(0, "", false) }
@@ -62,6 +65,10 @@ impl Item {
     }
     pub fn with_sym(mut self, s: Option<nacre_core::symbols::Sym>) -> Item {
         self.sym = s;
+        self
+    }
+    pub fn with_icon(mut self, b: Option<std::rc::Rc<nacre_platform::icons::Bitmap>>) -> Item {
+        self.icon = b;
         self
     }
     pub fn with_accel(mut self, a: &str) -> Item {
@@ -209,7 +216,8 @@ unsafe extern "system" fn proc(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LRESULT
                     nacre_platform::input::end_dismiss();
                     let _ = ShowWindow(h, SW_HIDE);
                 }
-                let _ = PostMessageW(Some(target), MENU_PICK, WPARAM(id), LPARAM(0));
+                let right = if m == WM_RBUTTONUP { MENU_RIGHT } else { 0 };
+                let _ = PostMessageW(Some(target), MENU_PICK, WPARAM(id), LPARAM(right));
             }
             LRESULT(0)
         }
@@ -312,7 +320,7 @@ impl Menu {
         let style = Style { px: text_px, weight: 400 };
         let head_px = (12.0 * d).round() as i32;
         let style_of = |it: &Item| Style { px: if it.heading { head_px } else { text_px }, weight: if it.title { 700 } else if it.heading { 600 } else { 400 } };
-        let has_sym = items.iter().any(|i| i.sym.is_some());
+        let has_sym = items.iter().any(|i| i.sym.is_some() || i.icon.is_some());
         let sym_w = if has_sym { 24.0 * d } else { 0.0 };
         let lead_d = 26.0 * d;
         let sw = (32.0 * d, 19.0 * d);
@@ -399,6 +407,18 @@ impl Menu {
                 let dy = if it.heading { 3.0 * d } else { 0.0 };
                 s.SetOffset(Vector3 { X: label_x(it), Y: ry + (rh - th) / 2.0 + dy, Z: 0.0 })?;
                 s.SetOpacity(if it.heading { 0.5 } else if it.enabled { 1.0 } else { 0.38 })?;
+                rb.Children()?.InsertAtTop(&s)?;
+            }
+            if let Some(b) = &it.icon {
+                let n = (18.0 * d).round() as u32;
+                let b = nacre_platform::icons::fit((**b).clone(), n);
+                let surface = gfx.surface_from_bgra(b.w, b.h, &b.bgra)?;
+                let brush = comp.CreateSurfaceBrushWithSurface(&surface)?;
+                brush.SetStretch(CompositionStretch::Uniform)?;
+                let s = comp.CreateSpriteVisual()?;
+                s.SetBrush(&brush)?;
+                s.SetSize(Vector2 { X: n as f32, Y: n as f32 })?;
+                s.SetOffset(Vector3 { X: (pad + 10.0 * d).round(), Y: (ry + (rh - n as f32) / 2.0).round(), Z: 0.0 })?;
                 rb.Children()?.InsertAtTop(&s)?;
             }
             if let Some(sym) = it.sym {

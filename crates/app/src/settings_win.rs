@@ -76,6 +76,8 @@ fn frame_pixels(w: i32, h: i32, radius: f32, hole: (f32, f32, f32, f32), hole_ra
 
 #[derive(Clone, Copy, Debug)]
 enum Action {
+    DockLeft(bool),
+    RailActivity,
     EditText(u8),
     NotchIdle(u8),
     LyricsCompact,
@@ -937,6 +939,7 @@ impl Win {
                     vec![
                         RowDef::Toggle(prefs::tr("Aktifkan Deck"), s.dock_enabled, Action::DockOn),
                         RowDef::Seg(prefs::tr("Perilaku"), behaviors(true), beh_idx(s.dock)),
+                        RowDef::Seg(prefs::tr("Posisi Deck"), vec![(prefs::tr("Bawah"), Action::DockLeft(false)), (prefs::tr("Kiri"), Action::DockLeft(true))], if s.dock_left { 1 } else { 0 }),
                         RowDef::Seg(prefs::tr("Efek minimize"), vec![(prefs::tr("Funnel"), Action::MinEffect(0)), (prefs::tr("Skala"), Action::MinEffect(1))], s.min_effect as usize),
                         RowDef::Toggle(prefs::tr("Ikon seragam (squircle)"), s.dock_plates, Action::DockPlates),
                         RowDef::Toggle(prefs::tr("Tumpukan Unduhan"), s.downloads_stack, Action::DownloadsStack),
@@ -949,7 +952,7 @@ impl Win {
                         RowDef::Slider(prefs::tr("Ukuran ikon"), s.dock_size, 4),
                         RowDef::Slider(prefs::tr("Jarak antar ikon"), s.dock_gap, 5),
                         RowDef::Slider(prefs::tr("Zoom saat hover"), s.dock_zoom, 6),
-                        RowDef::Slider(prefs::tr("Jarak dari tepi bawah"), s.dock_margin, 7),
+                        RowDef::Slider(prefs::tr(if s.dock_left { "Jarak dari tepi kiri" } else { "Jarak dari tepi bawah" }), s.dock_margin, 7),
                         RowDef::Slider(prefs::tr("Kebulatan sudut"), s.dock_round, 2),
                     ],
                 ),
@@ -1043,6 +1046,7 @@ impl Win {
                             cur,
                         ),
                         RowDef::Toggle(prefs::tr("Jam 24 jam"), s.clock_24h, Action::Clock24),
+                        RowDef::Toggle(prefs::tr("Ikon app yang berjalan"), s.rail_activity, Action::RailActivity),
                         RowDef::Seg(
                             prefs::tr("Persentase baterai"),
                             vec![(prefs::tr("Di dalam"), Action::BatteryPct(1)), (prefs::tr("Di luar"), Action::BatteryPct(2)), (prefs::tr("Sembunyi"), Action::BatteryPct(0))],
@@ -1794,6 +1798,8 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
                 Some(Action::UiScale(v)) => prefs::update(|s| s.ui_scale = v),
                 Some(Action::WidgetStyle(v)) => prefs::update(|s| s.widget_style = v),
                 Some(Action::BatteryPct(v)) => prefs::update(|s| s.battery_pct = v),
+                Some(Action::RailActivity) => prefs::update(|s| s.rail_activity = !s.rail_activity),
+                Some(Action::DockLeft(b)) => prefs::update(|s| s.dock_left = b),
                 Some(Action::WidgetGallery) => crate::widgets::open_gallery(),
                 Some(Action::NotchShape(b)) => prefs::update(|s| s.notch_island = b),
                 Some(Action::MenuLogoReset) => {

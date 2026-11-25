@@ -56,7 +56,7 @@ impl Tooltip {
         Ok(Tooltip { popup, text, dpi, cache: HashMap::new(), shown: None, tail, tail_color: Color { A: 200, R: 30, G: 32, B: 38 }, tail_surface: None })
     }
 
-    pub fn show(&mut self, comp: &Compositor, gfx: &Gfx, label: &str, cx: i32, bottom: i32) -> Result<()> {
+    pub fn show(&mut self, comp: &Compositor, gfx: &Gfx, label: &str, at: super::Anchor) -> Result<()> {
         let style = Style { px: (15.0 * self.dpi).round() as i32, weight: 500 };
         let (px, py) = ((14.0 * self.dpi) as i32, (5.0 * self.dpi) as i32);
         if !self.cache.contains_key(label) {
@@ -79,9 +79,21 @@ impl Tooltip {
             self.text.SetOffset(Vector3 { X: px as f32, Y: py as f32, Z: 0.0 })?;
             self.shown = Some(label.to_string());
         }
-        let x = nacre_platform::monitors::at(cx, bottom - 1).area.clamp_x(cx - w / 2, w, 4);
         let t = ((5.0 * self.dpi).round() as i32).max(3);
-        self.popup.set_rect(x, bottom - h - t, w, h + t)?;
+        let (cx, x) = match at {
+            super::Anchor::Above { cx, bottom } => {
+                let x = nacre_platform::monitors::at(cx, bottom - 1).area.clamp_x(cx - w / 2, w, 4);
+                self.popup.set_rect(x, bottom - h - t, w, h + t)?;
+                self.tail.SetOpacity(1.0)?;
+                (cx, x)
+            }
+            super::Anchor::Right { left, cy } => {
+                let y = nacre_platform::monitors::at(left + 1, cy).area.clamp_y(cy - h / 2, h, 4);
+                self.popup.set_rect(left, y, w, h)?;
+                self.tail.SetOpacity(0.0)?;
+                (left + w / 2, left)
+            }
+        };
         self.popup.panel.set_rect(0.0, 0.0, w as f32, h as f32)?;
         self.popup.panel.set_radius(h as f32 / 2.0)?;
         if self.tail_surface.as_ref().map(|(_, tt)| *tt) != Some(t) {

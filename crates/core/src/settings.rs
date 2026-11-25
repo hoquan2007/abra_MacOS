@@ -388,6 +388,8 @@ pub struct Settings {
     pub dock_reveal: Reveal,
     pub rail_reveal: Reveal,
     pub notch_reveal: Reveal,
+    pub rail_activity: bool,
+    pub dock_left: bool,
     pub notch_scale: u8,
     pub island_gap: u8,
     pub update_check: bool,
@@ -486,6 +488,8 @@ impl Default for Settings {
             dock_reveal: Reveal::Quick,
             rail_reveal: Reveal::Quick,
             notch_reveal: Reveal::Quick,
+            rail_activity: true,
+            dock_left: false,
             notch_scale: 100,
             island_gap: 7,
             update_check: true,
@@ -723,6 +727,16 @@ impl Settings {
                 "dock_reveal" => s.dock_reveal = Reveal::parse(v).unwrap_or(s.dock_reveal),
                 "rail_reveal" => s.rail_reveal = Reveal::parse(v).unwrap_or(s.rail_reveal),
                 "notch_reveal" => s.notch_reveal = Reveal::parse(v).unwrap_or(s.notch_reveal),
+                "dock_left" => {
+                    if let Some(b) = parse_bool(v) {
+                        s.dock_left = b;
+                    }
+                }
+                "rail_activity" => {
+                    if let Some(b) = parse_bool(v) {
+                        s.rail_activity = b;
+                    }
+                }
                 "notch_scale" => s.notch_scale = v.trim_end_matches('%').parse::<u16>().map(|n| n.clamp(80, 130) as u8).unwrap_or(s.notch_scale),
                 "island_gap" => s.island_gap = v.parse::<u16>().map(|n| n.min(40) as u8).unwrap_or(s.island_gap),
                 "update_check" => s.update_check = parse_bool(v).unwrap_or(s.update_check),
@@ -764,7 +778,7 @@ impl Settings {
 
     pub fn serialize(&self) -> String {
         format!(
-            "# ABRA settings\ntakeover={}\ndock={}\nnotch={}\nblur={}\nstyle={}\ntransparency={}\ntheme={}\nlang={}\ndock_material={}\ndock_round={}\nnotch_material={}\nnotch_round={}\nautostart={}\ndock_size={}\ndock_gap={}\ndock_zoom={}\ndock_margin={}\nanim={}\nrefraction={}\ndock_enabled={}\nnotch_enabled={}\nnotch_hover_open={}\nwin_shadow={}\nmenubar={}\nclock_24h={}\nmenubar_glass={}\nhot_tl={}\nhot_tr={}\nhot_bl={}\nhot_br={}\nstage={}\nswitcher={}\nstage_right={}\nstage_size={}\nstage_gap={}\nstage_count={}\nstage_speed={}\nstage_desktop_click={}\nstage_media={}\nstage_icons={}\nstage_titles={}\nhide_desktop_icons={}\nmenubar_style={}\ndock_plates={}\nover_fullscreen={}\nclipboard_history={}\nicon_style={}\nicon_tint={}\naccent={}\nmac_shortcuts={}\ndownloads_stack={}\nrecent_apps={}\nicon_pack={}\nmenubar_material={}\nicon_variant={}\nmin_effect={}\nnotch_idle={}\ngreet_name={}\ngreet_text={}\nlyrics_compact={}\nlyrics_online={}\nnotch_downloads={}\nnotch_send={}\nui_scale={}\nnotch_island={}\nwidget_style={}\nbattery_pct={}\nrail={}\nnotch_scale={}\nisland_gap={}\nupdate_check={}\nnotch_glow={}\npill_devices={}\npill_notices={}\npill_reminders={}\ntodo_hotkey={}\ndeck_screen={}\nrail_screen={}\nnotch_screen={}\nwidget_screen={}\npreset={}\nvisualizer={}\nfont={}\nreduce_motion={}\nfocus_cat={}\nfocus_mins={}\nbreak_mins={}\nfocus_name={}\nmeeting_companion={}\ncapsule={}\ncapsule_layout={}\ncapsule_decor={}\naccent_rgb={}\ndock_reveal={}\nrail_reveal={}\nnotch_reveal={}\n",
+            "# ABRA settings\ntakeover={}\ndock={}\nnotch={}\nblur={}\nstyle={}\ntransparency={}\ntheme={}\nlang={}\ndock_material={}\ndock_round={}\nnotch_material={}\nnotch_round={}\nautostart={}\ndock_size={}\ndock_gap={}\ndock_zoom={}\ndock_margin={}\nanim={}\nrefraction={}\ndock_enabled={}\nnotch_enabled={}\nnotch_hover_open={}\nwin_shadow={}\nmenubar={}\nclock_24h={}\nmenubar_glass={}\nhot_tl={}\nhot_tr={}\nhot_bl={}\nhot_br={}\nstage={}\nswitcher={}\nstage_right={}\nstage_size={}\nstage_gap={}\nstage_count={}\nstage_speed={}\nstage_desktop_click={}\nstage_media={}\nstage_icons={}\nstage_titles={}\nhide_desktop_icons={}\nmenubar_style={}\ndock_plates={}\nover_fullscreen={}\nclipboard_history={}\nicon_style={}\nicon_tint={}\naccent={}\nmac_shortcuts={}\ndownloads_stack={}\nrecent_apps={}\nicon_pack={}\nmenubar_material={}\nicon_variant={}\nmin_effect={}\nnotch_idle={}\ngreet_name={}\ngreet_text={}\nlyrics_compact={}\nlyrics_online={}\nnotch_downloads={}\nnotch_send={}\nui_scale={}\nnotch_island={}\nwidget_style={}\nbattery_pct={}\nrail={}\nnotch_scale={}\nisland_gap={}\nupdate_check={}\nnotch_glow={}\npill_devices={}\npill_notices={}\npill_reminders={}\ntodo_hotkey={}\ndeck_screen={}\nrail_screen={}\nnotch_screen={}\nwidget_screen={}\npreset={}\nvisualizer={}\nfont={}\nreduce_motion={}\nfocus_cat={}\nfocus_mins={}\nbreak_mins={}\nfocus_name={}\nmeeting_companion={}\ncapsule={}\ncapsule_layout={}\ncapsule_decor={}\naccent_rgb={}\ndock_reveal={}\nrail_reveal={}\nnotch_reveal={}\nrail_activity={}\ndock_left={}\n",
             self.takeover,
             self.dock.key(),
             self.notch.key(),
@@ -860,7 +874,9 @@ impl Settings {
             self.accent_rgb.map(hex).unwrap_or_default(),
             self.dock_reveal.key(),
             self.rail_reveal.key(),
-            self.notch_reveal.key()
+            self.notch_reveal.key(),
+            self.rail_activity,
+            self.dock_left
         )
     }
 }
@@ -1201,6 +1217,10 @@ menubar_material=true
         assert_eq!((d.dock_reveal, d.rail_reveal, d.notch_reveal), (Reveal::Quick, Reveal::Quick, Reveal::Quick));
         let f = Settings::parse(&Settings::parse("dock_reveal=santai\nrail_reveal=calm\nnotch_reveal=cepat\n").serialize());
         assert_eq!((f.dock_reveal, f.rail_reveal, f.notch_reveal), (Reveal::Calm, Reveal::Calm, Reveal::Quick));
+        assert!(d.rail_activity);
+        assert!(!d.dock_left);
+        assert!(Settings::parse(&Settings::parse("dock_left=true\n").serialize()).dock_left);
+        assert!(!Settings::parse(&Settings::parse("rail_activity=false\n").serialize()).rail_activity);
         assert_eq!(Settings::parse("dock_reveal=999\n").dock_reveal, Reveal::Quick);
         for r in Reveal::ALL {
             assert_eq!(Reveal::parse(r.key()), Some(r));

@@ -134,6 +134,15 @@ impl View {
         Ok(v)
     }
 
+    /// When the whole Deck is rotated onto the left edge, turn the icon picture back so it stays upright.
+    pub fn set_upright(&self, deck_left: bool) -> Result<()> {
+        if let Some(sprite) = &self.icon {
+            sprite.SetCenterPoint(Vector3 { X: self.icon_px / 2.0, Y: self.icon_px / 2.0, Z: 0.0 })?;
+            sprite.SetRotationAngleInDegrees(if deck_left { -90.0 } else { 0.0 })?;
+        }
+        Ok(())
+    }
+
     pub fn set_surface(&mut self, comp: &Compositor, surface: &CompositionDrawingSurface) -> Result<()> {
         if let Some(sprite) = &self.icon {
             let brush = comp.CreateSurfaceBrushWithSurface(surface)?;
