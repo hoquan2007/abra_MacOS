@@ -19,6 +19,7 @@ mod motion;
 mod spotlight;
 mod stage;
 mod switcher;
+mod appmenu;
 mod mainwin;
 mod paths;
 mod popup;
@@ -229,6 +230,9 @@ fn main() {
     if let Err(e) = controlcenter::init(&host.compositor) {
         log::line("controlcenter", &format!("gagal: {e}"));
     }
+    if let Err(e) = appmenu::init(&host.compositor) {
+        log::line("appmenu", &format!("gagal: {e}"));
+    }
     if let Err(e) = switcher::init(&host.compositor) {
         log::line("switcher", &format!("gagal: {e}"));
     }
@@ -273,6 +277,7 @@ fn main() {
         }
     }
     switcher::shutdown();
+    appmenu::shutdown();
     stage::shutdown();
     nacre_platform::clipboard::shutdown();
     macshortcuts::shutdown();

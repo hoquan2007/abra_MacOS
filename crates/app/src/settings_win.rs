@@ -129,6 +129,7 @@ enum Action {
     HotCycle(usize),
     StageOn,
     SwitcherOn,
+    WinMenu,
     StageFlag(u8),
     StageRight(bool),
     StageIcons(u8),
@@ -895,6 +896,7 @@ impl Win {
                         RowDef::Toggle(prefs::tr("Sembunyikan ikon desktop saat ABRA berjalan"), s.hide_desktop_icons, Action::HideIcons),
                         RowDef::Toggle(prefs::tr("Selalu di atas jendela layar penuh"), s.above_fullscreen, Action::AboveFull),
                         RowDef::Toggle(prefs::tr("Pintasan cepat (Alt+` ganti jendela app)"), s.mac_shortcuts, Action::MacKeys),
+                        RowDef::Toggle(prefs::tr("Tombol Windows membuka menu Apps ABRA"), s.win_menu, Action::WinMenu),
                     ],
                 ),
                 (
@@ -1880,6 +1882,7 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
                 Some(Action::HotCycle(i)) => prefs::update(|s| s.hot[i] = s.hot[i].next()),
                 Some(Action::StageOn) => prefs::update(|s| s.stage = !s.stage),
                 Some(Action::SwitcherOn) => prefs::update(|s| s.switcher = !s.switcher),
+                Some(Action::WinMenu) => prefs::update(|s| s.win_menu = !s.win_menu),
                 Some(Action::StageFlag(k)) => prefs::update(|s| match k {
                     1 => s.stage_desktop_click = !s.stage_desktop_click,
                     2 => s.stage_media = !s.stage_media,

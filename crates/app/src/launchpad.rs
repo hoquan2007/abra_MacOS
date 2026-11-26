@@ -1,4 +1,3 @@
-use nacre_core::spotlight::Mode;
 use windows::UI::Composition::Compositor;
 
 pub fn init(_comp: &Compositor) -> windows_core::Result<()> {
@@ -7,6 +6,7 @@ pub fn init(_comp: &Compositor) -> windows_core::Result<()> {
 
 pub fn shutdown() {}
 
+/// Kisi App kini memakai menu Apps (kolom cari, chip kelompok, kisi ikon).
 pub fn toggle() {
-    crate::spotlight::toggle_mode(Mode::Apps);
+    crate::appmenu::toggle();
 }

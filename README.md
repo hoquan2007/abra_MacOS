@@ -15,12 +15,18 @@
 > - **App switcher in the macOS style**: Alt+Tab shows one row of large app icons with the app name under the
 >   selected one; `Q` quits and `H` hides the selected app. It no longer needs Scene to be on.
 > - **Fix:** the Deck no longer stays stuck on screen after switching apps with Alt+Tab.
+> - **Apps menu on the Windows key**: pressing the Windows key on its own opens the ABRA Apps menu instead of
+>   the Start menu: a search field on top, category filters, and a grid of app icons on glass. Type to filter,
+>   `Enter` opens, `Esc` closes. Win+E, Win+D, Win+Tab and other shortcuts keep working. Turn it off in
+>   *Settings → General → Windows key opens the ABRA Apps menu*.
+> - **English by default**: a new install starts in English (Indonesian and Spanish stay available in Settings).
 >
 > **Download:** [latest release](https://github.com/hoquan2007/abra_MacOS/releases/latest), take `ABRA-Setup-x.y.z.exe`
 > (installer) or the portable `.zip`. Built-in updates of this build come from this repository.
 >
 > *Bản fork thêm: Buộc thoát (Force Quit) bằng chuột phải, khung xem app đang chạy trên Rail, Deck ở cạnh trái,
-> Alt+Tab kiểu macOS, và sửa lỗi Deck bị kẹt sau khi Alt+Tab.
+> Alt+Tab kiểu macOS, sửa lỗi Deck bị kẹt sau khi Alt+Tab, menu Apps mở bằng phím Windows (thay menu Start),
+> và ngôn ngữ mặc định là tiếng Anh.
 > Tải bản cài đặt ở mục [Releases](https://github.com/hoquan2007/abra_MacOS/releases/latest).*
 
 > [!WARNING]
