@@ -77,13 +77,45 @@ unsafe extern "system" fn callback(
         return;
     }
     if event == EVENT_SYSTEM_FOREGROUND {
-        focus_map().get_or_insert_with(HashMap::new).insert(hwnd.0 as isize, now_ms());
-        EXTERNAL_FG.store(hwnd.0 as isize, Ordering::Relaxed);
+        if let Some(fg) = settle_foreground(hwnd) {
+            focus_map().get_or_insert_with(HashMap::new).insert(fg.0 as isize, now_ms());
+            EXTERNAL_FG.store(fg.0 as isize, Ordering::Relaxed);
+        }
     }
     let list: Vec<fn()> = CALLBACKS.lock().unwrap_or_else(|e| e.into_inner()).clone();
     for f in list {
         f();
     }
+}
+
+/// Kelas jendela shell yang hanya singgah sebentar saat Alt+Tab / Task View.
+/// Windows sering mengirim EVENT_SYSTEM_FOREGROUND untuk jendela ini *setelah*
+/// app tujuan sudah di depan, sehingga jendela ini tak boleh dianggap foreground.
+pub fn is_transient_shell_class(class: &str) -> bool {
+    matches!(class, "XamlExplorerHostIslandWindow" | "ForegroundStaging" | "MultitaskingViewFrame" | "TaskSwitcherWnd")
+}
+
+fn class_of(h: HWND) -> String {
+    let mut b = [0u16; 128];
+    let n = unsafe { windows::Win32::UI::WindowsAndMessaging::GetClassNameW(h, &mut b) };
+    String::from_utf16_lossy(&b[..n.max(0) as usize])
+}
+
+fn owned_by_us(h: HWND) -> bool {
+    let mut pid = 0u32;
+    unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(h, Some(&mut pid)) };
+    pid == std::process::id()
+}
+
+/// Menentukan jendela foreground yang sebenarnya untuk sebuah event FOREGROUND.
+/// `None` berarti event diabaikan dan foreground sebelumnya tetap dipakai.
+fn settle_foreground(hwnd: HWND) -> Option<HWND> {
+    let usable = |h: HWND| !h.0.is_null() && !owned_by_us(h) && !is_transient_shell_class(&class_of(h));
+    let real = unsafe { GetForegroundWindow() };
+    if real != hwnd && usable(real) {
+        return Some(real);
+    }
+    usable(hwnd).then_some(hwnd)
 }
 
 pub fn install_fx(cb: fn(u32, isize)) {

@@ -12,11 +12,15 @@
 > - **Running apps panel**: a grid icon on the Rail lists open apps and background/tray apps with their icon and
 >   memory use. Click to switch, right-click for Show, Close or Force Quit.
 > - **Deck on the left edge**: *Settings → Deck → Deck position → Left*.
+> - **App switcher in the macOS style**: Alt+Tab shows one row of large app icons with the app name under the
+>   selected one; `Q` quits and `H` hides the selected app. It no longer needs Scene to be on.
+> - **Fix:** the Deck no longer stays stuck on screen after switching apps with Alt+Tab.
 >
 > **Download:** [latest release](https://github.com/hoquan2007/abra_MacOS/releases/latest), take `ABRA-Setup-x.y.z.exe`
 > (installer) or the portable `.zip`. Built-in updates of this build come from this repository.
 >
-> *Bản fork thêm: Buộc thoát (Force Quit) bằng chuột phải, khung xem app đang chạy trên Rail, và Deck ở cạnh trái.
+> *Bản fork thêm: Buộc thoát (Force Quit) bằng chuột phải, khung xem app đang chạy trên Rail, Deck ở cạnh trái,
+> Alt+Tab kiểu macOS, và sửa lỗi Deck bị kẹt sau khi Alt+Tab.
 > Tải bản cài đặt ở mục [Releases](https://github.com/hoquan2007/abra_MacOS/releases/latest).*
 
 > [!WARNING]
